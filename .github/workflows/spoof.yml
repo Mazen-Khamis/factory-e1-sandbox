@@ -7,4 +7,4 @@ jobs:
   verify-trusted:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "this job only has the name of the trusted check and runs no test"
+      - run: sleep 100; echo "this job only has the name of the trusted check, runs no test, and finishes after the real one"
