@@ -1,0 +1,15 @@
+# Verification started by a pull request. Used for test 1.2.
+name: verify-pr
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show which definition runs
+        run: echo "WORKFLOW-DEFINITION-VERSION approved-v1 (verify-pr)"
+      - name: Run acceptance tests
+        run: python3 -m unittest discover -s tests/acceptance -t . -v

@@ -1,0 +1,69 @@
+# Test 1.9: the verification job runs code of the task branch and holds no write right.
+# A separate job, which runs no code of the task branch, attests the result file.
+name: attest
+run-name: attest ${{ inputs.run_key }}
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: true
+      run_key:
+        required: true
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: trusted
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          path: candidate
+          persist-credentials: false
+      - name: Use the approved acceptance tests
+        run: |
+          rm -rf candidate/tests/acceptance
+          mkdir -p candidate/tests
+          cp -r trusted/tests/acceptance candidate/tests/acceptance
+      - name: Run acceptance tests against the task branch
+        id: tests
+        working-directory: candidate
+        continue-on-error: true
+        run: python3 -m unittest discover -s tests/acceptance -t . -v
+      - name: Write the result file
+        run: |
+          cat > result.json <<JSON
+          {
+            "run_key": "${{ inputs.run_key }}",
+            "ref": "${{ inputs.ref }}",
+            "implementation_commit": "$(git -C candidate rev-parse HEAD)",
+            "acceptance_test_sha256": "$(sha256sum trusted/tests/acceptance/test_add.py | cut -d' ' -f1)",
+            "definition_commit": "$(git -C trusted rev-parse HEAD)",
+            "verdict": "${{ steps.tests.outcome }}"
+          }
+          JSON
+          cat result.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: result
+          path: result.json
+  attest:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: result
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: result.json

@@ -1,0 +1,51 @@
+# Verification started from the definition on the default branch. Used for tests 1.3, 1.4, 1.7, 1.11.
+name: verify-trusted
+run-name: verify-trusted ${{ inputs.run_key }}
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Task branch to verify
+        required: true
+      run_key:
+        description: Identifier chosen by the caller
+        required: true
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the approved state (default branch)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: trusted
+          persist-credentials: false
+      - name: Check out the task branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          path: candidate
+          persist-credentials: false
+      - name: Show which definition and which tests are used
+        run: |
+          echo "WORKFLOW-DEFINITION-VERSION approved-v1 (verify-trusted)"
+          echo "run_key=${{ inputs.run_key }} ref=${{ inputs.ref }}"
+          echo "candidate commit: $(git -C candidate rev-parse HEAD)"
+          echo "approved test sha256: $(sha256sum trusted/tests/acceptance/test_add.py | cut -d' ' -f1)"
+          echo "candidate test sha256: $(sha256sum candidate/tests/acceptance/test_add.py 2>/dev/null | cut -d' ' -f1)"
+          if ! diff -rq trusted/tests/acceptance candidate/tests/acceptance >/dev/null 2>&1; then echo "PROTECTED-CONTENT-CHANGED: acceptance tests differ on the task branch"; fi
+          if ! diff -rq trusted/.github candidate/.github >/dev/null 2>&1; then echo "PROTECTED-CONTENT-CHANGED: workflow definitions differ on the task branch"; fi
+      - name: Scan the task branch for secret patterns
+        run: |
+          if grep -rEn --exclude-dir=.git 'sk-or-v1-[0-9a-f]{64}' candidate; then echo "SECRET-PATTERN-FOUND"; exit 1; else echo "no secret pattern found"; fi
+      - name: Use the approved acceptance tests
+        run: |
+          rm -rf candidate/tests/acceptance
+          mkdir -p candidate/tests
+          cp -r trusted/tests/acceptance candidate/tests/acceptance
+      - name: Run acceptance tests against the task branch
+        working-directory: candidate
+        run: python3 -m unittest discover -s tests/acceptance -t . -v

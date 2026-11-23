@@ -1,0 +1,23 @@
+# Like verify-trusted, but checks the task branch out the default way, which leaves the job token in the git configuration.
+# Used for test 1.4 to see what code under test can do with a read-only token it can reach.
+name: verify-leaky
+run-name: verify-leaky ${{ inputs.run_key }}
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: true
+      run_key:
+        required: true
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Run acceptance tests against the task branch
+        run: python3 -m unittest discover -s tests/acceptance -t . -v

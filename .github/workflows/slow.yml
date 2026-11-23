@@ -1,0 +1,25 @@
+# Tests 1.7 and 1.8: a run that takes long. limit_minutes is the time limit of the job.
+name: slow
+run-name: slow ${{ inputs.run_key }}
+on:
+  workflow_dispatch:
+    inputs:
+      run_key:
+        required: true
+      seconds:
+        required: true
+        default: "240"
+      limit_minutes:
+        required: true
+        default: "1"
+permissions:
+  contents: read
+concurrency:
+  group: slow-${{ inputs.run_key }}
+  cancel-in-progress: false
+jobs:
+  wait:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(inputs.limit_minutes) }}
+    steps:
+      - run: echo "run_key=${{ inputs.run_key }}"; sleep ${{ inputs.seconds }}

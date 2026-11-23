@@ -1,0 +1,21 @@
+# Test 1.6: what can a job with write access do against the protected default branch?
+name: probe-write
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Try to push to the protected default branch
+        run: |
+          git config user.name probe
+          git config user.email probe@example.invalid
+          echo "$(date -u +%FT%TZ)" >> probe.txt
+          git add probe.txt
+          git commit -q -m "probe: write token to the default branch"
+          if git push origin HEAD:main; then echo "RESULT write-token push-main: SUCCEEDED"; else echo "RESULT write-token push-main: REJECTED"; fi
+      - name: Try to push to another branch
+        run: |
+          if git push origin HEAD:refs/heads/probe/write-token; then echo "RESULT write-token push-other-branch: SUCCEEDED"; else echo "RESULT write-token push-other-branch: REJECTED"; fi

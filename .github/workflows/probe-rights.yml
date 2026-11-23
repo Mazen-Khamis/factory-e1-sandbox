@@ -1,0 +1,26 @@
+# Test 1.1: what can a job do whose token is reduced to read access?
+name: probe-rights
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Try to push to the default branch
+        run: |
+          git config user.name probe
+          git config user.email probe@example.invalid
+          echo "$(date -u +%FT%TZ)" >> probe.txt
+          git add probe.txt
+          git commit -q -m "probe: write to the default branch"
+          if git push origin HEAD:main; then echo "RESULT push-main: SUCCEEDED"; else echo "RESULT push-main: REJECTED"; fi
+      - name: Try to push to another branch
+        run: |
+          if git push origin HEAD:refs/heads/probe/read-token; then echo "RESULT push-other-branch: SUCCEEDED"; else echo "RESULT push-other-branch: REJECTED"; fi
+      - name: Try to change a file through the API
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api -X PUT "repos/${{ github.repository }}/contents/probe-api.txt" -f message="probe: api write" -f content="$(echo probe | base64)" -f branch=main; then echo "RESULT api-write: SUCCEEDED"; else echo "RESULT api-write: REJECTED"; fi
