@@ -1,7 +1,9 @@
 # Tests 1.7 and 1.8: a run that takes long. limit_minutes is the time limit of the job.
 name: slow
-run-name: slow ${{ inputs.run_key }}
+run-name: slow ${{ inputs.run_key || github.ref_name }}
 on:
+  push:
+    branches: ['trigger/slow/**']
   workflow_dispatch:
     inputs:
       run_key:
@@ -15,11 +17,11 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: slow-${{ inputs.run_key }}
+  group: slow-${{ inputs.run_key || github.ref_name }}
   cancel-in-progress: false
 jobs:
   wait:
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(inputs.limit_minutes) }}
+    timeout-minutes: ${{ fromJSON(inputs.limit_minutes || (contains(github.ref_name, 'long') && '10' || '1')) }}
     steps:
-      - run: echo "run_key=${{ inputs.run_key }}"; sleep ${{ inputs.seconds }}
+      - run: echo "run_key=${{ inputs.run_key || github.ref_name }}"; sleep ${{ inputs.seconds || 240 }}

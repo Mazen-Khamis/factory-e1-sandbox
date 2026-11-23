@@ -1,18 +1,20 @@
 # Test 1.9: the verification job runs code of the task branch and holds no write right.
 # A separate job, which runs no code of the task branch, attests the result file.
 name: attest
-run-name: attest ${{ inputs.run_key }}
+run-name: attest ${{ inputs.run_key || format('pr-{0}', github.event.pull_request.number) }}
 on:
+  pull_request_target:
   workflow_dispatch:
     inputs:
       ref:
-        required: true
+        required: false
       run_key:
-        required: true
+        required: false
 permissions:
   contents: read
 jobs:
-  verify:
+  attest-verify:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'task/honest')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -23,7 +25,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.event.pull_request.head.sha }}
           path: candidate
           persist-credentials: false
       - name: Use the approved acceptance tests
@@ -40,8 +42,8 @@ jobs:
         run: |
           cat > result.json <<JSON
           {
-            "run_key": "${{ inputs.run_key }}",
-            "ref": "${{ inputs.ref }}",
+            "run_key": "${{ inputs.run_key || format('pr-{0}', github.event.pull_request.number) }}",
+            "ref": "${{ inputs.ref || github.head_ref }}",
             "implementation_commit": "$(git -C candidate rev-parse HEAD)",
             "acceptance_test_sha256": "$(sha256sum trusted/tests/acceptance/test_add.py | cut -d' ' -f1)",
             "definition_commit": "$(git -C trusted rev-parse HEAD)",
@@ -54,7 +56,7 @@ jobs:
           name: result
           path: result.json
   attest:
-    needs: verify
+    needs: attest-verify
     runs-on: ubuntu-latest
     permissions:
       contents: read

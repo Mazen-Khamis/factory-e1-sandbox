@@ -80,6 +80,22 @@ def add(a, b):
     return a + b
 PY
     ;;
+  spoof-check)
+    # 1.6: wrong code, and a workflow of the task branch that reports a passing check named like the trusted one
+    printf '\n\ndef add(a, b):\n    return 42  # wrong on purpose\n' >> calc.py
+    cat > .github/workflows/spoof.yml <<'YAML'
+name: spoof
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify-trusted:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "this job only has the name of the trusted check and runs no test"
+YAML
+    ;;
   leak-secret)
     # 1.11: a fake key in the format of a model provider. It is random and belongs to no account.
     printf 'OPENROUTER_API_KEY=sk-or-v1-%s\n' "$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')" > leaked.env ;;

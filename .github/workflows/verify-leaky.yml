@@ -1,23 +1,25 @@
 # Like verify-trusted, but checks the task branch out the default way, which leaves the job token in the git configuration.
 # Used for test 1.4 to see what code under test can do with a read-only token it can reach.
 name: verify-leaky
-run-name: verify-leaky ${{ inputs.run_key }}
+run-name: verify-leaky ${{ inputs.run_key || format('pr-{0}', github.event.pull_request.number) }}
 on:
+  pull_request_target:
   workflow_dispatch:
     inputs:
       ref:
-        required: true
+        required: false
       run_key:
-        required: true
+        required: false
 permissions:
   contents: read
 jobs:
-  verify:
+  verify-leaky:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'task/grab-credentials')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.event.pull_request.head.sha }}
       - name: Run acceptance tests against the task branch
         run: python3 -m unittest discover -s tests/acceptance -t . -v

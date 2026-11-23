@@ -1,6 +1,9 @@
 # Test 1.1: what can a job do whose token is reduced to read access?
 name: probe-rights
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches: ['trigger/probe-rights/**']
 permissions:
   contents: read
 jobs:

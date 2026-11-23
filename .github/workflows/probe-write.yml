@@ -1,6 +1,9 @@
 # Test 1.6: what can a job with write access do against the protected default branch?
 name: probe-write
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches: ['trigger/probe-write/**']
 permissions:
   contents: write
 jobs:
