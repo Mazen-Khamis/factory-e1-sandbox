@@ -1,0 +1,10 @@
+name: spoof
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify-trusted:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "this job only has the name of the trusted check and runs no test"
