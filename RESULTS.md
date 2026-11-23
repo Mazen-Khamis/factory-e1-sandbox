@@ -4,7 +4,7 @@ Executed on 23 Nov 2026 in this repository, `Mazen-Khamis/factory-e1-sandbox`, b
 
 Plan: `docs/05-evaluation/experiments/E1-agent-execution-and-trust.md` in the repository of the factory.
 
-**Status: 9 of 11 tests done. Parts of 1.7 and 1.8 are open; 1.5 cannot be done with a single account.** Updated on 23 Nov 2026 after the owner switched on the protection of the default branch.
+**Status: 9 of 11 tests done. Parts of 1.7 and 1.8 are open; 1.5 cannot be done with a single account.** Updated on 23 Nov 2026 after the owner switched on the protection of the default branch. Tests 1.12 to 1.17 on approvals were added on the same day; all six are done.
 
 ## How it was done
 
@@ -28,6 +28,12 @@ Plan: `docs/05-evaluation/experiments/E1-agent-execution-and-trust.md` in the re
 | 1.9 | Signed attestation, verified with saved material | **Holds.** |
 | 1.10 | How long runs and logs are kept | **90 days at most** for a public repository. |
 | 1.11 | Is a committed key detected? | **Holds** for a key in a known format: the push was refused. |
+| 1.12 | Can the account that opened a pull request approve it? | **No.** Refused by the platform. |
+| 1.13 | Can a job approve a pull request with its token? | **No**, with the settings of this repository. |
+| 1.14 | Can an approval signed by the owner be verified without the platform? | **Holds.** |
+| 1.15 | Are forged approvals rejected? | **Holds with a condition.** The list of permitted signers must be read from the default branch. |
+| 1.16 | Does the signature cover the content? | **Holds.** |
+| 1.17 | Can a step without a human sign with a key that has a passphrase? | **No.** No commit was created. |
 
 ## 1.1 Read-only token
 
@@ -176,11 +182,53 @@ The key never reached the repository. GitHub offers a link with which a person c
 
 **Verdict: holds** for a key in a format GitHub knows. Not tested: a secret in an unknown format. The workflow `verify-trusted` also contains a scan step for this pattern; it did not run on this scenario because the push was already refused.
 
+## 1.12 to 1.17 How an approval can be tied to a human
+
+Added on 23 Nov 2026. Question: by which means can the factory tell an approval given by the owner from one written by an agent (SR-006, FR-023)? Two candidates were tested: an approving review of the pull request on the platform, and a signature with a key that only the owner can use.
+
+### Candidate 1: approving review (in this repository)
+
+**1.12** The session that ran the experiment works with the account of the owner, and all pull requests were opened with it. It tried to approve pull request #2 through the API:
+
+```
+HTTP 422: Review Can not approve your own pull request
+```
+
+**1.13** A job with `pull-requests: write` tried the same with its own token (workflow `probe-approve` on the branch `trigger/probe-approve/1`, run 45178604023):
+
+```
+HTTP 422: GitHub Actions is not permitted to approve pull requests.
+```
+
+The repository setting that would allow this was not changed. The session could not read it.
+
+**Consequence:** with a single account, a required review cannot serve as the approval when the pull request is opened with the account of the owner, because nobody is left who may approve. It would need pull requests opened by another identity. Whether every token of the owner could then approve, human or not, was not tested.
+
+### Candidate 2: signature (outside this repository)
+
+Executed in a throwaway repository inside the cloud session, with git 2.43.0 and OpenSSH 9.6. Three throwaway keys were created and deleted afterwards: "owner", "agent" and "owner with passphrase". The list of permitted signers is a file on the default branch that names the key of the owner. The verifier reads this list from the default branch, never from the task branch.
+
+| No. | Prepared case | Result of `git verify-commit` |
+| --- | --- | --- |
+| 1.14 | Approval record in a commit signed with the key of the owner | Good signature, signer named. Accepted. |
+| 1.15a | Approval record without signature, author name "Owner" | No signature. Rejected. |
+| 1.15b | Approval record signed with the key of the agent, author name "Owner" | "No principal matched." Rejected. |
+| 1.15c | As 1.15b, and the agent adds its key to the list on its branch | Rejected with the list from the default branch. **Accepted** in the control, in which the verifier took the list from the task branch. |
+| 1.16 | The signature of the owner copied onto a commit with changed content | "incorrect signature". Rejected. |
+| 1.17 | A step without a terminal tries to sign with the key that has a passphrase | Signing failed. No commit was created. |
+
+The verification needed no network access and no platform.
+
+**Verdict:** SR-006 can be met with a signature. Two conditions: the list of permitted signers is protected content and is read from the default branch (1.15c), and the key cannot be used without the human, for example because of a passphrase or a hardware key (1.17).
+
+**Not tested:** a hardware key; a key that a key agent holds unlocked, which every process of the same user could use; how the first list of signers of a project is established (SR-023).
+
 ## What is still open
 
 - **1.7 and 1.8, optional:** start `verify-trusted` by hand (Actions → "Run workflow" on `main`, with `ref` and `run_key`) to see whether a start from the default branch behaves like the start by `pull_request_target`, and whether the start returns an identifier; cancel a run of `slow` by hand. Both can also be done later from the command line.
 - **1.5:** needs a second account or an organisation.
+- **Approvals:** which of the two means is used is a decision of the architecture. What was not tested is listed under 1.12 to 1.17.
 
 ## What exists in this repository
 
-Branches `task/*`, `trigger/*` and `probe/write-token`, pull requests #1 to #5 (#1 merged, the others open), seven workflows under `.github/workflows/`, one attestation, and a protection rule on `main`. No secret was created.
+Branches `task/*`, `trigger/*` and `probe/write-token`, pull requests #1 to #5 for the scenarios (#1 merged, the others open; later pull requests only changed this file), seven workflows under `.github/workflows/` on `main` and the workflow `probe-approve` on its own branch, one attestation, and a protection rule on `main`. No secret was created.
