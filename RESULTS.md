@@ -4,7 +4,7 @@ Executed on 23 Nov 2026 in this repository, `Mazen-Khamis/factory-e1-sandbox`, b
 
 Plan: `docs/05-evaluation/experiments/E1-agent-execution-and-trust.md` in the repository of the factory.
 
-**Status: 8 of 11 tests done, 2 need one action of the owner, 1 cannot be done with a single account.**
+**Status: 9 of 11 tests done. Parts of 1.7 and 1.8 are open; 1.5 cannot be done with a single account.** Updated on 23 Nov 2026 after the owner switched on the protection of the default branch.
 
 ## How it was done
 
@@ -22,7 +22,7 @@ Plan: `docs/05-evaluation/experiments/E1-agent-execution-and-trust.md` in the re
 | 1.3 | Can the verification run from the approved definition with the approved tests? | **Holds with a condition.** |
 | 1.4 | Can code under test reach a credential and write? | **Holds with a condition.** |
 | 1.5 | Rights of runs caused by a fork | **Not tested.** Needs a second account or an organisation. |
-| 1.6 | Who can get around the protection of the default branch? | **Open.** Needs branch protection, which the owner must switch on. |
+| 1.6 | Who can get around the protection of the default branch? | **Holds with a condition.** No push and no merge got around it, and a check with a spoofed name did not satisfy it. |
 | 1.7 | Start, find again, start twice | **Partly.** Found again: holds. Second start: not prevented by the platform. Whether the start returns an identifier: not tested. |
 | 1.8 | Time limit and cancelling | **Partly.** Time limit: holds. Cancelling from outside: not tested. |
 | 1.9 | Signed attestation, verified with saved material | **Holds.** |
@@ -81,19 +81,33 @@ No branch was created by the probe (checked with `git ls-remote`).
 
 ## 1.6 Protection of the default branch
 
-**Open.** Changing branch protection is not permitted to the session that ran the experiment ("Write access to this GitHub API path is not permitted through this proxy").
+The owner switched on a protection rule for `main`: the status check `verify-trusted` (from the app GitHub Actions) is required, and the rule applies to everyone, administrators included. The session that ran the experiment could not set or read the rule in full; `GET /repos/.../branches/main` reports `enforcement_level: everyone`.
 
-Observed without protection:
+**Without the protection** (before): pull requests with failing checks were mergeable (`mergeable_state: unstable`). Nothing stopped a merge.
 
-- Pull requests #2, #3 and #5 have failing checks and are still mergeable (`mergeable_state: unstable`). Without protection, nothing stops a merge.
-- Scenario `spoof-check` (pull request #5) is prepared. The task branch adds a workflow whose job has the name `verify-trusted` and runs no test. The commit now carries **two checks with the same name**, both from the app `github-actions`:
+**With the protection:**
 
-| Check | From | Result |
-| --- | --- | --- |
-| `verify-trusted` | `.github/workflows/verify-trusted.yml`, base definition | failure |
-| `verify-trusted` | `.github/workflows/spoof.yml`, added by the task branch | success |
+| Attempt | Result |
+| --- | --- |
+| Direct push to `main` from the session, which has administrator rights on the repository | Rejected: `GH006: Protected branch update failed`, "Required status check \"verify-trusted\" is expected" |
+| Push to `main` from a job with `contents: write` (workflow `probe-write`, run 45162195395) | Rejected, the same message |
+| Push to another branch from the same job | **Succeeded.** The branch `probe/write-token` was created |
+| Merge of pull request #3, whose trusted check failed | Refused: HTTP 405, "Required status check \"verify-trusted\" is failing" |
+| Merge of pull request #1, the honest change, through the API | Merged |
 
-Whether a required check named `verify-trusted` blocks this pull request is the decisive observation. It needs the protection to be on.
+**A check with a spoofed name.** Scenario `spoof-check` (pull request #5): wrong code, and a workflow added by the task branch whose job is named `verify-trusted` and runs no test. The commit carries two checks with this name, both from the app `github-actions`.
+
+| Variant | Real check | Spoofed check | Pull request | Merge through the API |
+| --- | --- | --- | --- | --- |
+| Spoofed check finishes first (commit 999fc4d) | failure | success | `blocked` | – |
+| Spoofed check finishes 100 seconds after the real one (commit d2bec43) | failure at 11:06:59 | success at 11:08:39 | `blocked` | Refused: HTTP 405, "Required status check \"verify-trusted\" is failing" |
+
+**Verdict: holds with a condition.** With the rule on, neither an administrator's push, nor a job with a write token, nor a check with a spoofed name got a change into `main`. A failing check with the required name blocks, whichever finishes last. Conditions and limits:
+
+- The rule must include administrators. Without it, the owner's credentials get around it.
+- **A write token is not limited to one branch.** A job with `contents: write` could create and change any branch that is not protected. If the agent run holds such a token, it can write to the branch of another task.
+- **The rule did not notice that `main` had changed.** Pull request #1 was verified before the results file was added to `main`, and it was merged afterwards. The merged state was never verified as a whole. GitHub has an option to require that a branch is up to date before merging; it was not switched on and not tested.
+- Not tested: whether the owner, in the browser, can still bypass the rule; a check reported by a different app.
 
 ## 1.7 Start, find again, start twice
 
@@ -162,11 +176,11 @@ The key never reached the repository. GitHub offers a link with which a person c
 
 **Verdict: holds** for a key in a format GitHub knows. Not tested: a secret in an unknown format. The workflow `verify-trusted` also contains a scan step for this pattern; it did not run on this scenario because the push was already refused.
 
-## What the owner has to do for the open tests
+## What is still open
 
-1. **For 1.6:** Settings → Branches → add a protection rule for `main`: require status checks to pass, and choose the check `verify-trusted`. Also switch on that administrators cannot bypass the rule. After that, the pull requests #1 and #5 show whether a check with a spoofed name satisfies the rule, and the pushes to `main` can be tried.
-2. **For 1.7 and 1.8, optional:** Actions → `verify-trusted` → "Run workflow" on `main` with `ref = task/honest` and a `run_key`; and cancel a run of `slow` by hand. Both can also be done later with the command line.
+- **1.7 and 1.8, optional:** start `verify-trusted` by hand (Actions → "Run workflow" on `main`, with `ref` and `run_key`) to see whether a start from the default branch behaves like the start by `pull_request_target`, and whether the start returns an identifier; cancel a run of `slow` by hand. Both can also be done later from the command line.
+- **1.5:** needs a second account or an organisation.
 
 ## What exists in this repository
 
-Branches `task/*` and `trigger/*`, pull requests #1 to #5 (all open), seven workflows under `.github/workflows/`, one attestation. Nothing was merged. No secret was created.
+Branches `task/*`, `trigger/*` and `probe/write-token`, pull requests #1 to #5 (#1 merged, the others open), seven workflows under `.github/workflows/`, one attestation, and a protection rule on `main`. No secret was created.
