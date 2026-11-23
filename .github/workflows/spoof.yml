@@ -1,0 +1,10 @@
+name: spoof
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify-trusted:
+    runs-on: ubuntu-latest
+    steps:
+      - run: sleep 100; echo "this job only has the name of the trusted check, runs no test, and finishes after the real one"
