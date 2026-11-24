@@ -4,7 +4,7 @@ Executed on 23 Nov 2026 in this repository, `Mazen-Khamis/factory-e1-sandbox`, b
 
 Plan: `docs/05-evaluation/experiments/E1-agent-execution-and-trust.md` in the repository of the factory.
 
-**Status: 9 of 11 tests done. Parts of 1.7 and 1.8 are open; 1.5 cannot be done with a single account.** Updated on 23 Nov 2026 after the owner switched on the protection of the default branch. Tests 1.12 to 1.17 on approvals were added on the same day; all six are done. Tests 1.18 to 1.20 for the architecture of stage A were added on 24 Nov 2026.
+**Status: 9 of 11 tests done. Parts of 1.7 and 1.8 are open; 1.5 cannot be done with a single account.** Updated on 23 Nov 2026 after the owner switched on the protection of the default branch. Tests 1.12 to 1.17 on approvals were added on the same day; all six are done. Tests 1.18 to 1.22 for the architecture of stage A were added on 24 Nov 2026.
 
 ## How it was done
 
@@ -37,6 +37,8 @@ Plan: `docs/05-evaluation/experiments/E1-agent-execution-and-trust.md` in the re
 | 1.18 | Does a verification started directly from the default branch use the approved definition? | **Holds.** |
 | 1.19 | Can a branch for records be protected so that its history cannot be rewritten or deleted? | **Holds with a condition.** Rewriting and deleting are refused; a normal commit that changes an old record is not. |
 | 1.20 | Does applying a change package with Git and checking the resulting tree reject crafted packages? | **Holds** in nine prepared cases. |
+| 1.21 | Can a change be merged only with passed tests and a human approval of exactly its commit? | **Holds.** |
+| 1.22 | Can a merge commit be pushed to the records branch? | **No.** Refused by the rule "Require linear history". |
 
 ## 1.1 Read-only token
 
@@ -276,6 +278,31 @@ Added on 24 Nov 2026. Executed in a throwaway repository inside the cloud sessio
 
 Nothing was written outside the working tree. **Verdict: holds** for these cases. `git diff` alone does not contain files that Git does not track yet; the package is therefore made with `git add -A` and `git diff --cached --binary <base>`.
 
+## 1.21 Approval and merge, end to end
+
+Added on 24 Nov 2026. Question: a check started with `workflow_dispatch` belongs to the commit of the default branch, not to the pull request, so it cannot be the required check. Can the merge be held to passed tests **and** a human approval of exactly the commit, also against the owner's own account?
+
+Set-up:
+
+- `approval-gate.yml` on `main`: started by `pull_request_target` (opened, synchronize, reopened, labeled), runs no code of the task branch, reads the list of permitted signers `.factory/allowed_signers` from `main`, reads the branch `factory-records`, checks that this branch only grows and has no merge commit, and passes only if a file `approvals/<head commit>/…` was added there in a commit signed by a key with the role `role-human`.
+- The list names two throwaway keys created in the cloud session: `owner@role-human` and `recorder@role-factory`.
+- The owner made `approval-gate` a second required check on `main`, next to `verify-trusted`, and added `factory-records` to the ruleset `records`.
+- Pull request #10 from `task/e2e`, head `b590832`. After each new record, a label was added to the pull request to start the gate again.
+
+| Step | approval-gate | verify-trusted | Merge through the API with the owner's account |
+| --- | --- | --- | --- |
+| No approval | failed: `NO-VALID-HUMAN-APPROVAL` | passed | refused: `Required status check "approval-gate" is failing` (HTTP 405) |
+| Approval `A-1` signed with the factory key (`d7391a9`) | failed: signature good, signer `recorder@role-factory`, `NO-VALID-HUMAN-APPROVAL` (run 45456051253) | passed | refused (HTTP 405) |
+| Approval `A-2` signed with the human key (`712d1e5`) | passed: signer `owner@role-human`, `APPROVAL-FOUND` (run 45456164402) | passed | **merged** |
+
+**Verdict: holds.** The merge needed both checks; the owner's account could not merge without a human approval of exactly the head commit, and a valid signature of the factory key did not count as an approval. The verification that counts for the merge is the run started by the pull request with the definition of `main` (tests 1.3, 1.6); a run started with `workflow_dispatch` (1.18) does not satisfy a required check.
+
+**Not tested:** that a new commit on the task branch after the approval makes the gate fail (it should, because the approval names the old commit); custody of the human key – in this test both keys were throwaway keys held by the cloud session, so the test shows the gate, not the protection of the key.
+
+## 1.22 Merge commit on the records branch
+
+Added on 24 Nov 2026. The owner added "Require linear history" to the ruleset `records`. A push of a merge commit to `records` was refused: `GH013 … This branch must not contain merge commits.` This closes a gap of the check in 1.19: `git log --diff-filter` does not show changes made in a merge commit.
+
 ## What is still open
 
 - **1.7 and 1.8, optional:** start `verify-trusted` by hand (Actions → "Run workflow" on `main`, with `ref` and `run_key`) to see whether a start from the default branch behaves like the start by `pull_request_target`, and whether the start returns an identifier; cancel a run of `slow` by hand. Both can also be done later from the command line.
@@ -285,4 +312,4 @@ Nothing was written outside the working tree. **Verdict: holds** for these cases
 
 ## What exists in this repository
 
-Branches `task/*`, `trigger/*` and `probe/write-token`, pull requests #1 to #5 for the scenarios (#1 merged, the others open; later pull requests only changed this file), seven workflows under `.github/workflows/` on `main` and the workflow `probe-approve` on its own branch, one attestation, and a protection rule on `main`. No secret was created.
+Branches `task/*`, `trigger/*` and `probe/write-token`, pull requests #1 to #5 for the scenarios (#1 merged, the others open; later pull requests only changed this file), seven workflows under `.github/workflows/` on `main` and the workflow `probe-approve` on its own branch, one attestation, a protection rule on `main` with two required checks, the ruleset `records` on `records` and `factory-records`, the workflow `approval-gate` and the list `.factory/allowed_signers` of two throwaway public keys. No secret was created; the private keys of the test were deleted.
