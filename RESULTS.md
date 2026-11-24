@@ -4,7 +4,7 @@ Executed on 23 Nov 2026 in this repository, `Mazen-Khamis/factory-e1-sandbox`, b
 
 Plan: `docs/05-evaluation/experiments/E1-agent-execution-and-trust.md` in the repository of the factory.
 
-**Status: 21 of 22 tests done, 1.7 and 1.8 in part. 1.5 cannot be done with a single account.** Tests 1.1 to 1.11 are the tests of the plan. Tests 1.12 to 1.17 on approvals were added on 23 Nov 2026, tests 1.18 to 1.22 for the architecture of stage A on 24 Nov 2026.
+**Status: 23 of 24 tests done, 1.7, 1.8 and 1.24 in part. 1.5 cannot be done with a single account.** Tests 1.1 to 1.11 are the tests of the plan. Tests 1.12 to 1.17 on approvals were added on 23 Nov 2026, tests 1.18 to 1.24 for the architecture of stage A on 24 Nov 2026.
 
 ## How it was done
 
@@ -39,6 +39,8 @@ Plan: `docs/05-evaluation/experiments/E1-agent-execution-and-trust.md` in the re
 | 1.20 | Does applying a change package with Git and checking the resulting tree reject crafted packages? | **Holds** in nine prepared cases. |
 | 1.21 | Can a change be merged only with passed tests and a human approval of exactly its commit? | **Holds.** |
 | 1.22 | Can a merge commit be pushed to the records branch? | **No.** Refused by the rule "Require linear history". |
+| 1.23 | Does an approval still count after a new commit on the task branch? | **No.** The gate failed for the new commit. |
+| 1.24 | Do the two trusted workflows still run under an Actions event policy that allows `pull_request_target` only for them? | **Partly.** They run; that the policy keeps them running after GitHub blocks the event by default on 2 Dec 2026 can only be shown from that day. |
 
 ## 1.1 Read-only token
 
@@ -303,13 +305,37 @@ Set-up:
 
 Added on 24 Nov 2026. The owner added "Require linear history" to the ruleset `records`. A push of a merge commit to `records` was refused: `GH013 … This branch must not contain merge commits.` This closes a gap of the check in 1.19: `git log --diff-filter` does not show changes made in a merge commit.
 
+## 1.23 An approval does not survive a new commit
+
+Added on 24 Nov 2026. New throwaway keys were put on the list of signers (pull request #12). Pull request #13 from `task/stale`:
+
+| Step | Head commit | approval-gate |
+| --- | --- | --- |
+| Approval `A-1` of `d04387c`, signed with the human key, then a label added | `d04387c` | passed (check run 138674568648) |
+| A second commit pushed to the task branch | `ebda868` | **failed**: `commit to approve: ebda868…`, `NO-VALID-HUMAN-APPROVAL` (check run 138674829346, event `synchronize`) |
+
+**Verdict: holds.** The approval names the commit it approves; a new commit needs a new approval.
+
+At this point `approval-gate` was no longer a required check: the owner had taken it out so that the list of signers could be replaced. Pull request #13 was therefore merged by the session although the gate had failed. This shows again that the gate protects only while the protection rule requires it (D4a).
+
+## 1.24 Actions event policy for `pull_request_target`
+
+Added on 24 Nov 2026. GitHub announced that from 2 Dec 2026 it blocks `pull_request_target` by default in public repositories, unless an Actions event policy allows it. Both trusted workflows of this repository use that event.
+
+The owner created a policy in Settings → Actions → Policies: status "Active"; target workflows `.github/workflows/verify-trusted.yml` and `.github/workflows/approval-gate.yml`; "Restrict events" with the allowed events `pull_request_target` and `workflow_dispatch`.
+
+With the policy active, both workflows ran on pull requests #12 and #13 (for example `verify-trusted` passed and `approval-gate` ran on #12). Workflows outside the policy, such as `verify-pr` with the event `pull_request`, still ran.
+
+**Verdict: partly.** The policy does not stop the two trusted workflows. Whether it keeps them running once the default block is in force can only be shown from 2 Dec 2026; the test is repeated then by opening one pull request.
+
 ## What is still open
 
 - **1.7 and 1.8, optional:** whether a start with `gh workflow run` returns an identifier, and cancelling a run from outside. Both can be done later from the command line.
 - **1.5:** needs a second account or an organisation.
+- **1.24:** repeat on or after 2 Dec 2026: open a pull request and check that `verify-trusted` and `approval-gate` still run.
 - **Approvals:** which of the two means is used is a decision of the architecture. What was not tested is listed under 1.12 to 1.17.
 - **1.7, start from the default branch:** done in 1.18. Whether the start returns an identifier is still not tested; `gh workflow run` was not used, the owner started the runs in the browser.
 
 ## What exists in this repository
 
-Branches `task/*`, `trigger/*` and `probe/write-token`, pull requests #1 to #5 for the scenarios (#1 merged, the others open; later pull requests only changed this file), seven workflows under `.github/workflows/` on `main` and the workflow `probe-approve` on its own branch, one attestation, a protection rule on `main` with two required checks, the ruleset `records` on `records` and `factory-records`, the workflow `approval-gate` and the list `.factory/allowed_signers` of two throwaway public keys. No secret was created; the private keys of the test were deleted.
+Branches `task/*`, `trigger/*` and `probe/write-token`, pull requests #1 to #5 for the scenarios (#1 merged, the others open; later pull requests only changed this file), seven workflows under `.github/workflows/` on `main` and the workflow `probe-approve` on its own branch, one attestation, a protection rule on `main` with two required checks, the ruleset `records` on `records` and `factory-records`, the workflow `approval-gate`, the list `.factory/allowed_signers` of two throwaway public keys, and the Actions event policy of 1.24. `approval-gate` is not a required check any more since test 1.23. No secret was created; the private keys of the test were deleted.
