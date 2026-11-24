@@ -4,14 +4,14 @@ Executed on 23 Nov 2026 in this repository, `Mazen-Khamis/factory-e1-sandbox`, b
 
 Plan: `docs/05-evaluation/experiments/E1-agent-execution-and-trust.md` in the repository of the factory.
 
-**Status: 9 of 11 tests done. Parts of 1.7 and 1.8 are open; 1.5 cannot be done with a single account.** Updated on 23 Nov 2026 after the owner switched on the protection of the default branch. Tests 1.12 to 1.17 on approvals were added on the same day; all six are done. Tests 1.18 to 1.22 for the architecture of stage A were added on 24 Nov 2026.
+**Status: 21 of 22 tests done, 1.7 and 1.8 in part. 1.5 cannot be done with a single account.** Tests 1.1 to 1.11 are the tests of the plan. Tests 1.12 to 1.17 on approvals were added on 23 Nov 2026, tests 1.18 to 1.22 for the architecture of stage A on 24 Nov 2026.
 
 ## How it was done
 
 - `fake-agent.sh` plays a coding agent. It creates a branch `task/<scenario>` with prepared commits.
 - Every scenario was pushed and opened as a pull request (#1 to #5).
 - The session that ran the experiment may push branches and open pull requests. It may **not** start workflows through the API, cancel runs, or change branch protection. Tests that need this are marked.
-- Because workflows could not be started through the API, the trusted verification was started by the event `pull_request_target`, which takes the workflow file from the base branch. Starting it with `workflow_dispatch` on the default branch was not tested.
+- Because workflows could not be started through the API, the trusted verification was started by the event `pull_request_target`, which takes the workflow file from the base branch. Starting it with `workflow_dispatch` on the default branch was tested later, in 1.18, by the owner in the browser.
 
 ## Summary
 
@@ -305,7 +305,7 @@ Added on 24 Nov 2026. The owner added "Require linear history" to the ruleset `r
 
 ## What is still open
 
-- **1.7 and 1.8, optional:** start `verify-trusted` by hand (Actions → "Run workflow" on `main`, with `ref` and `run_key`) to see whether a start from the default branch behaves like the start by `pull_request_target`, and whether the start returns an identifier; cancel a run of `slow` by hand. Both can also be done later from the command line.
+- **1.7 and 1.8, optional:** whether a start with `gh workflow run` returns an identifier, and cancelling a run from outside. Both can be done later from the command line.
 - **1.5:** needs a second account or an organisation.
 - **Approvals:** which of the two means is used is a decision of the architecture. What was not tested is listed under 1.12 to 1.17.
 - **1.7, start from the default branch:** done in 1.18. Whether the start returns an identifier is still not tested; `gh workflow run` was not used, the owner started the runs in the browser.
