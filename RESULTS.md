@@ -4,7 +4,7 @@ Executed on 23 Nov 2026 in this repository, `Mazen-Khamis/factory-e1-sandbox`, b
 
 Plan: `docs/05-evaluation/experiments/E1-agent-execution-and-trust.md` in the repository of the factory.
 
-**Status: 9 of 11 tests done. Parts of 1.7 and 1.8 are open; 1.5 cannot be done with a single account.** Updated on 23 Nov 2026 after the owner switched on the protection of the default branch. Tests 1.12 to 1.17 on approvals were added on the same day; all six are done.
+**Status: 9 of 11 tests done. Parts of 1.7 and 1.8 are open; 1.5 cannot be done with a single account.** Updated on 23 Nov 2026 after the owner switched on the protection of the default branch. Tests 1.12 to 1.17 on approvals were added on the same day; all six are done. Tests 1.18 to 1.20 for the architecture of stage A were added on 24 Nov 2026.
 
 ## How it was done
 
@@ -34,6 +34,9 @@ Plan: `docs/05-evaluation/experiments/E1-agent-execution-and-trust.md` in the re
 | 1.15 | Are forged approvals rejected? | **Holds with a condition.** The list of permitted signers must be read from the default branch. |
 | 1.16 | Does the signature cover the content? | **Holds.** |
 | 1.17 | Can a step without a human sign with a key that has a passphrase? | **No.** No commit was created. |
+| 1.18 | Does a verification started directly from the default branch use the approved definition? | **Holds.** |
+| 1.19 | Can a branch for records be protected so that its history cannot be rewritten or deleted? | **Holds with a condition.** Rewriting and deleting are refused; a normal commit that changes an old record is not. |
+| 1.20 | Does applying a change package with Git and checking the resulting tree reject crafted packages? | **Holds** in nine prepared cases. |
 
 ## 1.1 Read-only token
 
@@ -223,11 +226,62 @@ The verification needed no network access and no platform.
 
 **Not tested:** a hardware key; a key that a key agent holds unlocked, which every process of the same user could use; how the first list of signers of a project is established (SR-023).
 
+## 1.18 Verification started directly from the default branch
+
+Added on 24 Nov 2026. The owner started `verify-trusted` by hand ("Run workflow", event `workflow_dispatch`) on `main` at `45bf0ef`, once for each task branch. This is how the factory will start it, with `gh workflow run`.
+
+| Run | Task branch | Commit checked | Definition that ran | Acceptance test used | Result |
+| --- | --- | --- | --- | --- | --- |
+| 45453015838 (`d2-honest`) | `task/honest` | `fd7afcf` | `approved-v1` from `main` | the approved one (sha256 `90e12ee5…`) | **passed** |
+| 45453079540 (`d2-cheat`) | `task/cheat-workflow` | `86a6d70` | `approved-v1` from `main` | the approved one (sha256 `90e12ee5…`) | **failed**: `test_add ... FAIL`; also `PROTECTED-CONTENT-CHANGED: workflow definitions differ on the task branch` |
+
+The changed workflow definition on `task/cheat-workflow`, which runs no test and reports success, was not used. The run `d2-cheat` was started twice by mistake (also run 45452933431, same result); as in 1.7, the platform did not prevent the second start.
+
+**Verdict: holds.** A verification started directly from the default branch runs the approved definition and the approved tests against the named task branch.
+
+## 1.19 A branch for records
+
+Added on 24 Nov 2026. The owner created a ruleset `records` with "Restrict deletions" and "Block force pushes", no bypass. Then the branch `records` was created with one record.
+
+| Attempt | By | Result |
+| --- | --- | --- |
+| Push of a commit that adds a record | cloud session, owner account | accepted |
+| Force push back to the first commit | owner, own machine | refused: `GH013 … Cannot force-push to this branch` |
+| Deleting the branch | owner, own machine | refused: `GH013 … Cannot delete this branch` |
+| Push of a commit that changes an old record (`49b254f`) | cloud session, owner account | **accepted** |
+| Push of a commit that deletes an old record (`42caaf5`) | cloud session, owner account | **accepted** |
+| `git log --diff-filter=MDR origin/records` | – | names exactly the two commits above and their files |
+
+The cloud session could not try force push and deletion itself: its proxy refused both with HTTP 403. That is a limit of the session, not a result about the platform; the owner tried both.
+
+**Verdict: holds with a condition.** The ruleset protects the history of the branch against rewriting and deletion, also for the owner. It does not make the branch append only: a normal commit may change or delete a record. The factory must check that every commit on the branch only adds files, which `git log --diff-filter=MDR` shows.
+
+The branch `records` keeps the two probe commits.
+
+## 1.20 Checking a change package
+
+Added on 24 Nov 2026. Executed in a throwaway repository inside the cloud session, with git 2.43.0, not on the platform. A package is the output of `git diff --binary` against a base commit. It is applied with `git apply --index` in a clean working tree at the base commit; then the resulting tree is checked: only paths below `src/`, only regular files that are not executable, nothing below `tests/acceptance/`.
+
+| Package | Result |
+| --- | --- |
+| An honest change of a file below `src/` | accepted |
+| A change of an acceptance test | rejected by the check of the tree |
+| A new symbolic link pointing to the acceptance tests | rejected by the check of the tree (mode 120000) |
+| A file made executable | rejected by the check of the tree (mode 100755) |
+| A submodule | applied by Git, rejected by the check of the tree (mode 160000) |
+| A path with `../` | rejected by `git apply`: invalid path |
+| A path into `.git/hooks/` | rejected by `git apply`: invalid path |
+| An absolute path | treated as a path inside the project, rejected by the check of the tree |
+| A package made against another base | rejected by `git apply`: patch failed |
+
+Nothing was written outside the working tree. **Verdict: holds** for these cases. `git diff` alone does not contain files that Git does not track yet; the package is therefore made with `git add -A` and `git diff --cached --binary <base>`.
+
 ## What is still open
 
 - **1.7 and 1.8, optional:** start `verify-trusted` by hand (Actions → "Run workflow" on `main`, with `ref` and `run_key`) to see whether a start from the default branch behaves like the start by `pull_request_target`, and whether the start returns an identifier; cancel a run of `slow` by hand. Both can also be done later from the command line.
 - **1.5:** needs a second account or an organisation.
 - **Approvals:** which of the two means is used is a decision of the architecture. What was not tested is listed under 1.12 to 1.17.
+- **1.7, start from the default branch:** done in 1.18. Whether the start returns an identifier is still not tested; `gh workflow run` was not used, the owner started the runs in the browser.
 
 ## What exists in this repository
 
