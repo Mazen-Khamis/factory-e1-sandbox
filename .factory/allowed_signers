@@ -1,0 +1,3 @@
+# Permitted signers. The part after @ is the role: role-human may approve, role-factory may only record.
+owner@role-human namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDnFbatk/WX6puBFf30edZppS/kogWK5qdvDWPvxZ2zJ
+recorder@role-factory namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID5menUXfzXx7i6ut9hJWPY37G6785QNAqmIZxepR6E8
