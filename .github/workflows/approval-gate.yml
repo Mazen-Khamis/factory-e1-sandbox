@@ -1,0 +1,46 @@
+# Required check: a change may be merged only if a human has approved exactly its commit.
+# Runs no code of the task branch. Reads the list of signers from the default branch.
+name: approval-gate
+run-name: approval-gate pr-${{ github.event.pull_request.number }}
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled]
+permissions:
+  contents: read
+jobs:
+  approval-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the default branch (list of signers)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+      - name: Fetch the records branch
+        run: |
+          git init -q records
+          git -C records fetch -q "https://github.com/${{ github.repository }}" "+refs/heads/factory-records:refs/remotes/origin/factory-records"
+      - name: Check that the records branch only grows
+        run: |
+          cd records
+          merges=$(git rev-list --min-parents=2 origin/factory-records)
+          bad=$(git log --format='%h %s' --diff-filter=MDRT --name-status origin/factory-records)
+          if [ -n "$merges" ] || [ -n "$bad" ]; then echo "RECORDS-DAMAGED"; echo "$merges"; echo "$bad"; exit 1; fi
+          echo "records only grow"
+      - name: Look for a human approval of exactly this commit
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          cd records
+          echo "commit to approve: $HEAD_SHA"
+          ok=0
+          for f in $(git ls-tree -r --name-only origin/factory-records -- "approvals/$HEAD_SHA/"); do
+            c=$(git log --format=%H --diff-filter=A origin/factory-records -- "$f" | tail -1)
+            if out=$(git -c gpg.ssh.allowedSignersFile=../trusted/.factory/allowed_signers verify-commit "$c" 2>&1); then v=good; else v=bad; fi
+            p=$(printf '%s\n' "$out" | sed -n 's/^Good "git" signature for \([^ ]*\) with.*/\1/p')
+            echo "$f: commit ${c:0:7}, signature $v, signer ${p:-none}"
+            if [ "$v" = good ] && [ "${p#*@}" = role-human ]; then ok=1; fi
+          done
+          if [ $ok -eq 1 ]; then echo "RESULT approval-gate: APPROVAL-FOUND"; else echo "RESULT approval-gate: NO-VALID-HUMAN-APPROVAL"; exit 1; fi
